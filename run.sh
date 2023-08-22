@@ -10,7 +10,7 @@ DIR=$(cd $(dirname $0); pwd)
 # 3. 如果PID匹配,结束自己
 # 4. 循环Command进程
 #
-# run.sh {base64} {time} {kill}
+# run.sh {base64} {time} {on/off}
 #
 #####################
 if [ -z $1 ];then
@@ -62,11 +62,11 @@ if [ -f $SHELL_LOCK ];then
     if [ "$line" -eq 2 ];then
       SHELL_RUN=$row
     fi
-    if [ "$line" -eq 3 ];then
-      if [[ "$row" =~ ^[0-9]+$ ]];then
-        SHELL_TIME=$row
-      fi
-    fi
+    # if [ "$line" -eq 3 ];then
+    #   if [[ "$row" =~ ^[0-9]+$ ]];then
+    #     SHELL_TIME=$row
+    #   fi
+    # fi
 
     line=$((${line}+1))
   done < $SHELL_LOCK
@@ -81,32 +81,43 @@ if [ -f $SHELL_LOCK ];then
       exit 0;
     fi
 
+
     ## 判断轮询时间 和 CLI_RUN、SHELL_RUN
     if [ "$SHELL_TIME" -eq "$CLI_TIME" ];then
       if [ "$SHELL_RUN" = "$CLI_RUN" ];then
         SHELL_HOLD=1
       fi
     fi
+    # echo "$SHELL_RUN"
+    # echo "$CLI_RUN"
     ## 如果完全匹配结束自己, 反之结束原有进程
     if [ "$SHELL_HOLD" -eq 1 ];then
-      exit 0;
-    else
-      kill -9 "$SHELL_PID"
-      rm $SHELL_LOCK
-      echo "remove old shell $SHELL_PID ..."
-    fi
+      # 容器下的僵尸进程暂时不清理
+      zombie=$(cat /proc/$SHELL_PID/status | grep State | grep Z|wc -l)
+      if [ "$zombie" -eq 0 ]; then
+        echo "please check PID: ${SHELL_PID}"
+        exit 0
+      else
+        echo "zombie PID: ${SHELL_PID}"
+      fi
 
-  else
-    ## PID不存在, 删除lock文件
-    rm $SHELL_LOCK
-    echo "remove $SHELL_LOCK ."
+    else
+      echo "kill -9 ${SHELL_PID}"
+      kill -9 "$SHELL_PID"
+    fi
   fi
 
+
+
+  ##总是清理一次lock文件
+  rm $SHELL_LOCK
+  echo "remove old shell PID: ${SHELL_PID} ..."
 fi;
 #END lock
 
 #是该结束鸟
 if [ "$CLI_ON" = "off" ];then
+  echo "off command."
   exit 0;
 fi;
 
@@ -117,7 +128,7 @@ fi;
 ## lock文件
 # 第一行: 当前shell PID
 # 第二行: base64编码的函数
-# 第三行: php轮询间隔
+# 第三行: command轮询间隔
 #####################
 echo "$$" > "$SHELL_LOCK"
 echo "$CLI_RUN" >> "$SHELL_LOCK"
@@ -125,22 +136,22 @@ echo "$CLI_TIME" >> "$SHELL_LOCK"
 
 decoded_str=$(crond_decode "$CLI_RUN")
 COMMADN="cd ${CLI_DIR} ; ${decoded_str}"
-echo $COMMADN
 
 SLEEPSTR=""
 if command -v usleep &> /dev/null; then
-  if [[ $SHELL_TIME =~ \. ]]; then
+  if [[ ! "$SHELL_TIME" =~ ^[0-9]+$ ]]; then
     MICROSECONDS=$(echo "$SHELL_TIME * 1000000" | bc -l | cut -d '.' -f 1)
     SLEEPSTR="usleep ${MICROSECONDS}"
   fi
 fi
-if [[ "$SLEEPSTR" == "" ]]; then
-    $SLEEPSTR="sleep ${SHELL_TIME}"
+if [ -z "$SLEEPSTR" ]; then
+    SLEEPSTR="sleep ${SHELL_TIME}"
 fi
-#echo $SLEEPSTR
 
 while true; do
+  echo $COMMADN
   eval $COMMADN
+  echo $SLEEPSTR
   eval $SLEEPSTR
 done
 #END FILE

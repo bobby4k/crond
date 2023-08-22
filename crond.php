@@ -68,7 +68,7 @@ foreach ($CONFIG_ARR as $k => $v) {
                     $SYS_CONFIGARR[$sk] = $v[$sk];
                 }
             }
-            echo "\tcurrent system param {$sk}: {$SYS_CONFIGARR[$sk]}\n";
+            echo "\tcurrent {$sk}: {$SYS_CONFIGARR[$sk]}\n";
             $CONFIG_CONTENT .= "{$sk} = \"{$SYS_CONFIGARR[$sk]}\"\n";
         }
         $CONFIG_CONTENT .= "\n\n";
