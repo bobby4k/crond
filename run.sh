@@ -8,7 +8,7 @@ DIR=$(cd $(dirname $0); pwd)
 # 1. 通过lock文件, 如果进程存在且不匹配, kill原PID
 # 2. 如果PID不存在, 生成自己的PID
 # 3. 如果PID匹配,结束自己
-# 4. 循环PHP进程
+# 4. 循环Command进程
 #
 # run.sh {base64} {time} {kill}
 #
@@ -33,7 +33,7 @@ CLI_DIR=$DIR
 if [ -n "$4" ] && [ -d "$4" ]; then
   CLI_DIR="$4"
 fi
-if [[ "$CLI_TIME" =~ ^[0-9]+$ ]];then
+if [[ "$CLI_TIME" =~ ^[0-9\.]+$ ]]; then
   SHELL_TIME="$CLI_TIME"
 else
   #默认1分钟
@@ -125,9 +125,22 @@ echo "$CLI_TIME" >> "$SHELL_LOCK"
 
 decoded_str=$(crond_decode "$CLI_RUN")
 COMMADN="cd ${CLI_DIR} ; ${decoded_str}"
+echo $COMMADN
+
+SLEEPSTR=""
+if command -v usleep &> /dev/null; then
+  if [[ $SHELL_TIME =~ \. ]]; then
+    MICROSECONDS=$(echo "$SHELL_TIME * 1000000" | bc -l | cut -d '.' -f 1)
+    SLEEPSTR="usleep ${MICROSECONDS}"
+  fi
+fi
+if [[ "$SLEEPSTR" == "" ]]; then
+    $SLEEPSTR="sleep ${SHELL_TIME}"
+fi
+#echo $SLEEPSTR
+
 while true; do
   eval $COMMADN
-  sleep $SHELL_TIME
+  eval $SLEEPSTR
 done
-
-
+#END FILE

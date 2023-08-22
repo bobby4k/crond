@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Read configuration file and rewrite.
  *
@@ -12,25 +13,28 @@
 global $CONFIG_INI, $CONFIG_ARR, $CONFIG_CONTENT;
 global $SYS_CONFIGARR;
 $SYS_CONFIGARR['workspace'] = dirname(__FILE__);
-$SYS_CONFIGARR['lockdir']   = dirname(__FILE__) . DIRECTORY_SEPARATOR .'lock';
+$SYS_CONFIGARR['lockdir']   = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'lock';
 @mkdir($SYS_CONFIGARR['lockdir']);
 
-
-if (!empty($argv[1])) {
-    $tmp_file = pathinfo(str_replace(' ', '', $argv[1]), PATHINFO_FILENAME);
-    $CONFIG_INI = $SYS_CONFIGARR['workspace'] . DIRECTORY_SEPARATOR . $tmp_file . '.ini';
-} else {
-    //default
-    $CONFIG_INI = $SYS_CONFIGARR['workspace'] . DIRECTORY_SEPARATOR . 'crond.ini';
+if (empty($argv[1]) || !str_ends_with($argv[1], '.ini')) {
+    echo "\n\tempty argv: ini file\n\n";
+    return;
+    // $CONFIG_INI = $SYS_CONFIGARR['workspace'] . DIRECTORY_SEPARATOR . 'crond.ini';
 }
 
-//file exists
-if (!is_file($CONFIG_INI)){
+$CONFIG_INI = realpath($argv[1]);
+if (!is_file($CONFIG_INI)) {
     echo "\n\tFile:{$CONFIG_INI} does not exist. Please check.\n\n";
     return;
 }
+
+//crond_name
 $m = null;
-preg_match('/\/(?P<crond_name>\w+)\.ini$/', $CONFIG_INI, $m);
+preg_match('/\/(?P<crond_name>[\w-]+)\.ini$/', $CONFIG_INI, $m);
+if (!isset($m['crond_name'])) {
+    echo "\n\tini filename only supoort [a-zA-Z0-9_-]\n\n";
+    return;
+}
 $crond_name = $m['crond_name'];
 
 //parse ini
@@ -40,24 +44,24 @@ $CONFIG_SHELL_CONTENT = "#!/bin/bash\n";
 $DEFAULT_TIME = 180; //默认轮转时间 180s.
 
 if (empty($CONFIG_ARR)) {
-    exit('empty ini, bye!');
+    exit('ini empty content, bye!');
 }
 
 //循环 check 每一个配置
 foreach ($CONFIG_ARR as $k => $v) {
 
-    if($k=='system'){
+    if ($k == 'system') {
         $CONFIG_CONTENT .= "[{$k}]\n; System configuration\n";
         //system configure
-        foreach(['workspace','lockdir'] as $sk){
-            if ( array_key_exists($sk,$v) ){
-                if (strlen($v[$sk])>3){
+        foreach (['workspace', 'lockdir'] as $sk) {
+            if (array_key_exists($sk, $v)) {
+                if (strlen($v[$sk]) > 3) {
                     //mkdir($v[$sk]); //try mkdir 0777
-                    if( !is_dir($v[$sk]) ){
+                    if (!is_dir($v[$sk])) {
                         echo "\n\tERR: The parameter '{$sk}' is not a directory.\n\n";
                         return;
                     }
-                    if ( 'lockdir'==$sk and !is_writable($v[$sk]) ){
+                    if ('lockdir' == $sk and !is_writable($v[$sk])) {
                         echo "\n\tERR: The directory '{$sk}' is not writable.\n\n";
                         return;
                     }
@@ -68,20 +72,20 @@ foreach ($CONFIG_ARR as $k => $v) {
             $CONFIG_CONTENT .= "{$sk} = \"{$SYS_CONFIGARR[$sk]}\"\n";
         }
         $CONFIG_CONTENT .= "\n\n";
-        continue;//next app configure
+        continue; //next app configure
     }
 
     $CONFIG_CONTENT .= "[{$k}]\n; Command in workspace\n";
     $CONFIG_CONTENT .= "command = \"{$v['command']}\"\n";
 
     $workspace = $SYS_CONFIGARR['workspace'];
-    if (!empty($v['workspace']) && is_dir($v['workspace']) ) {
+    if (!empty($v['workspace']) && is_dir($v['workspace'])) {
         $workspace = $v['workspace'];
         $CONFIG_CONTENT .= "; Task Workspace \nworkspace = \"{$workspace}\"\n";
     }
 
     if (!empty($v['time']) && is_numeric($v['time'])) {
-        $v['time'] = (int)$v['time'];
+        $v['time'] = $v['time'];
     } else {
         $v['time'] = $DEFAULT_TIME;
     }
@@ -101,9 +105,9 @@ foreach ($CONFIG_ARR as $k => $v) {
     }
     $CONFIG_CONTENT .= "\n\n";
 
-    if (count($argv)>2 and $argv[2]=='pkill'){
+    if (count($argv) > 2 and $argv[2] == 'pkill') {
         $CONFIG_SHELL_CONTENT .= "pkill -f \"{$v['command']}\"\n";
-    }else
+    } else
         $CONFIG_SHELL_CONTENT .= "nohup sh run.sh {$v['lock']} {$v['time']} {$v['enable']} \"{$workspace}\"> /dev/null 2>&1 &\n";
 }
 //END for
@@ -111,7 +115,8 @@ file_put_contents($CONFIG_INI, $CONFIG_CONTENT);
 $CONFIG_SH  = $SYS_CONFIGARR['lockdir'] . DIRECTORY_SEPARATOR . "{$crond_name}.sh";
 file_put_contents($CONFIG_SH,  $CONFIG_SHELL_CONTENT);
 
-echo "\n\tAlong Crond Command execution with {$CONFIG_SH} \n\sn";
+
+echo "\n\tAlong Crond Command execution with {$CONFIG_SH} \n\n";
 exec("sh {$CONFIG_SH}");
 
 // 采用64位加密

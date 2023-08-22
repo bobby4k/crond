@@ -4,6 +4,7 @@
 
 # Dependencies
 - bash
+    - sleep usleep bc cut
 - php-cli
 
 # Usage
@@ -20,6 +21,7 @@ crond.sh start mytasks.ini
     - Why not separate deployments? The machine has 32 cores and 64GB memory, which might not be attainable in a cloud service.
 - Insufficiency of crontab
     - Cron does not care if the previous run of the same task has completed when a new instance starts. When a task starts, I want the previous one to have completed and exited.
+    - Crontab has another issue. When NTP synchronized time exceeds 1 second, the scheduled tasks will no longer run.
 - Solution from a Decade Ago
     - Perhaps supervisor is more suitable, but the configuration is relatively cumbersome.
     - Digging out a solution from ten years ago, utilizing bash while loop to control the loop, with some modifications it works fine. Let's go with it.
